@@ -3,14 +3,13 @@ from flask import Flask, request, jsonify, abort
 from sqlalchemy import exc
 import json
 from flask_cors import CORS
-
 from .database.models import db_drop_and_create_all, setup_db, Drink
 from .auth.auth import AuthError, requires_auth
+import sys
 
 app = Flask(__name__)
 setup_db(app)
 CORS(app)
-
 
 #db_drop_and_create_all()
 
@@ -23,7 +22,7 @@ def get_drinks():
         if not drinks:
             abort(404)
 
-        drinks = [drink.short() for drink in drinks]
+        drinks = [drink.long() for drink in drinks]
 
         return jsonify({
             'success': True,
@@ -35,7 +34,7 @@ def get_drinks():
 
 @app.route('/drinks-detail', methods=['GET'])
 @requires_auth('get:drinks-detail')
-def get_drink_details():
+def get_drink_details(jwt):
     try:
         drinks = Drink.query.all()
 
@@ -58,8 +57,7 @@ def get_drink_details():
 def create_drink(jwt):
     try:
         new_drink = request.get_json()
-
-        title = json.loads(request.data)['title']
+        title = new_drink.get('title')
         if title == '':
             abort(400)
 
@@ -75,6 +73,7 @@ def create_drink(jwt):
         }), 201
 
     except Exception as error:
+        sys.stdout.flush()
         raise error
 
 @app.route('/drinks/<int:drink_id>', methods=['PATCH'])
@@ -142,6 +141,14 @@ def not_found(error):
         "error": 404,
         "message": error.description
     }), 404
+
+@app.errorhandler(400)
+def bad_request(error):
+    return jsonify({
+        "success": False,
+        "error": 400,
+        "message": error.description
+    }), 400
 
 @app.errorhandler(AuthError)
 def authentication_error(error):
